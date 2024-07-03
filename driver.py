@@ -36,51 +36,56 @@ def llm_text(newD=Body()):
 
 @app.get("/extract_intent_from_voice_and_interact")
 def llm_voice():
-    options = ["en-US", "ja-JP"]
-    targetJSON = {}
+
+    try:
+
+        options = ["en-US", "ja-JP"]
+        targetJSON = {}
+        
+
+
+        #1. Greet the user on call.
+        util.respondtoUser("How may I assist you.")
+
+        #2. Extract the users audio and do STT
+        userCall = util.recognize_from_microphone(options[0])
+        
+        #3. Create relevant prompt
+        userIntent = util.prompt_Creation(
+            userCall, prompt_instance.USER_INTENT_PROMPT, 0.1
+        )
+
+        #4. GENERATE A CONTEXTUAL RESPONSE
+        contextualresponse = util.prompt_Creation(
+            userCall,prompt_instance.EMPATHY, 0.1
+        )
+
+        #5. Respond to the user
+        util.respondtoUser(contextualresponse)
+
+
+        #6. Extract KYC
+        util.respondtoUser("Let me help you, just share some details with me.")
+
+        masterQuestionKeyPhrases = ['name','date of birth','policy number']
+
+        keyValPair = {}
+        for qes in masterQuestionKeyPhrases:
+            keyValPair[qes] = util.prompt_to_question(qes)
+
+        
+        targetJSON['USER_INTENT'] = userIntent
+
+        for key,ques in keyValPair.items():
+            # Run the loop to extract the values
+            util.respondtoUser(ques)
+
+            rawAnswer = util.recognize_from_microphone(options[0])
+            keyPhraseExtracted = util.extractKeyPhrase(key,rawAnswer)
+
+            targetJSON[key] = keyPhraseExtracted
+        return targetJSON
     
-
-
-    #1. Greet the user on call.
-    util.respondtoUser("How may I assist you.")
-
-    #2. Extract the users audio and do STT
-    userCall = util.recognize_from_microphone(options[0])
-    
-    #3. Create relevant prompt
-    userIntent = util.prompt_Creation(
-        userCall, prompt_instance.USER_INTENT_PROMPT, 0.1
-    )
-
-    #4. GENERATE A CONTEXTUAL RESPONSE
-    contextualresponse = util.prompt_Creation(
-        userCall,prompt_instance.EMPATHY, 0.1
-    )
-
-    #5. Respond to the user
-    util.respondtoUser(contextualresponse)
-
-
-    #6. Extract KYC
-    util.respondtoUser("Let me help you, just share some details with me.")
-
-    masterQuestionKeyPhrases = ['name','date of birth','policy number']
-
-    keyValPair = {}
-    for qes in masterQuestionKeyPhrases:
-        keyValPair[qes] = util.prompt_to_question(qes)
-
-    
-    targetJSON['USER_INTENT'] = userIntent
-    
-    for key,ques in keyValPair.items():
-        # Run the loop to extract the values
-        util.respondtoUser(ques)
-
-        rawAnswer = util.recognize_from_microphone(options[0])
-        keyPhraseExtracted = util.extractKeyPhrase(key,rawAnswer)
-
-        targetJSON[key] = keyPhraseExtracted
-    
-
-    return targetJSON
+    except Exception as e:
+        exception_message = str(e)
+        return exception_message
