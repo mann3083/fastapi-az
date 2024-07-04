@@ -5,6 +5,7 @@ from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient
 import azure.cognitiveservices.speech as speechsdk
 from prompts import IntentPrompt
+from pydub import AudioSegment
 
 load_dotenv()  # take environment variables from .env.
 SPEECH_KEY = os.getenv('SPEECH_KEY')
@@ -18,6 +19,8 @@ speech_config = speechsdk.SpeechConfig(subscription=SPEECH_KEY, region=SPEECH_RE
 locale = ['ja-JP','en-US']
 prompt_instance = IntentPrompt()
 
+#speech_config = speechsdk.SpeechConfig(subscription=SPEECH_KEY, region=SPEECH_REGION)
+speech_config.speech_synthesis_voice_name = "en-US-AvaMultilingualNeural"
 
 def prompt_Creation(query, prmpt, temp=0.1):
 
@@ -171,3 +174,77 @@ def extractKeyPhrase(key,prompt):
         stop=None,  # Stop generation at a specific token
     )
     return response.choices[0].message.content
+
+
+def convert_speech_to_text(file_path):
+    try:
+        # Configure Azure Speech SDK for speech-to-text
+        speech_config = speechsdk.SpeechConfig(
+            subscription=SPEECH_KEY, region=SPEECH_REGION
+        )
+        audio_config = speechsdk.audio.AudioConfig(filename=file_path)
+        speech_recognizer = speechsdk.SpeechRecognizer(
+            speech_config=speech_config, audio_config=audio_config
+        )
+
+        # Recognize speech
+        #result = speech_recognizer.recognize_once()
+
+        #Recognize Speech and extract Text
+        speech_recognition_result = speech_recognizer.recognize_once_async().get()
+
+
+        if speech_recognition_result.reason == speechsdk.ResultReason.RecognizedSpeech:
+            print("Recognized: {}".format(speech_recognition_result.text))
+            return speech_recognition_result.text
+        
+        elif speech_recognition_result.reason == speechsdk.ResultReason.NoMatch:
+            print("No speech could be recognized: {}".format(speech_recognition_result.no_match_details))
+            return "NO MATCH"
+        
+        elif speech_recognition_result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = speech_recognition_result.cancellation_details
+            print("Speech Recognition canceled: {}".format(cancellation_details.reason))
+            if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                print("Error details: {}".format(cancellation_details.error_details))
+                print("Did you set the speech resource key and region values?")
+            return "NO CONTENT RECOGNIZED"
+    except Exception as e:
+        print(f"Synthesis failed: {e}")
+        #return f"Synthesis failed"
+
+
+def convert_text_to_speech(text):
+    try:
+        # Configure Azure Speech SDK for text-to-speech
+        speech_config = speechsdk.SpeechConfig(
+            subscription=SPEECH_KEY, region=SPEECH_REGION
+        )
+        speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+
+        result = speech_synthesizer.speak_text_async(text).get()
+
+    # Checks result.
+        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            # print("Speech synthesized to speaker for text [{}]".format(text))
+            return True
+        elif result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            print("Speech synthesis canceled: {}".format(cancellation_details.reason))
+            if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                if cancellation_details.error_details:
+                    print("Error details: {}".format(cancellation_details.error_details))
+            print("Did you update the subscription info?")
+        return False
+
+    except Exception as e:
+        print(f"Synthesis failed: {e}")
+
+
+def convert_webm_to_wav(input_file, output_file):
+    # Load the .webm file
+    audio = AudioSegment.from_file(input_file, format="webm")
+    # Set channels to mono, sample rate to 16000 Hz, and sample width to 16-bit
+    audio = audio.set_channels(1).set_frame_rate(16000).set_sample_width(2)
+    # Export the audio to .wav format
+    audio.export(output_file, format="wav")
